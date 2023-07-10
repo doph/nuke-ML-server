@@ -24,10 +24,11 @@ import numpy as np
 import cv2
 
 import tensorflow as tf
+tf.compat.v1.disable_eager_execution() # For TF 2.x compatibility
 
 from ..baseModel import BaseModel
 from ..common.model_builder import EncoderDecoder
-from ..common.util import print_, get_ckpt_list
+from ..common.util import print_, get_ckpt_list, linear_to_srgb, srgb_to_linear
 
 class Model(BaseModel):
     """Load your trained model and do inference in Nuke"""
@@ -78,7 +79,7 @@ class Model(BaseModel):
         Return the result of the inference.
         """
         image = image_list[0]
-        image = self.linear_to_srgb(image).copy()
+        image = linear_to_srgb(image).copy()
         H, W, channels = image.shape
 
         # Add padding so that width and height of image are a multiple of 16
@@ -90,21 +91,21 @@ class Model(BaseModel):
             # Initialise input placeholder size
             self.curr_height = new_H; self.curr_width = new_W
             # Initialise tensorflow graph
-            tf.reset_default_graph()
-            config = tf.ConfigProto()
+            tf.compat.v1.reset_default_graph()
+            config = tf.compat.v1.ConfigProto()
             config.gpu_options.allow_growth=True
-            self.sess=tf.Session(config=config)
-            self.input = tf.placeholder(tf.float32, shape=[self.batch_size, new_H, new_W, channels])
+            self.sess=tf.compat.v1.Session(config=config)
+            self.input = tf.compat.v1.placeholder(tf.float32, shape=[self.batch_size, new_H, new_W, channels])
             self.model = EncoderDecoder(self.n_levels, self.scale, channels)
             self.infer_op = self.model(self.input, reuse=False)
             # Load model checkpoint having the longest training (highest step)
-            self.saver = tf.train.Saver()
+            self.saver = tf.compat.v1.train.Saver()
             self.load(self.sess, self.checkpoints_dir)
             self.prev_ckpt_name = self.checkpoint_name
 
         elif self.curr_height != new_H or self.curr_width != new_W:
             # Modify input placeholder size
-            self.input = tf.placeholder(tf.float32, shape=[self.batch_size, new_H, new_W, channels])
+            self.input = tf.compat.v1.placeholder(tf.float32, shape=[self.batch_size, new_H, new_W, channels])
             self.infer_op = self.model(self.input, reuse=False)
             # Update image height and width
             self.curr_height = new_H; self.curr_width = new_W
@@ -126,5 +127,5 @@ class Model(BaseModel):
         # Remove first dimension and padding
         res = res[0, :H, :W, :]
 
-        output_image = self.srgb_to_linear(res)
+        output_image = srgb_to_linear(res)
         return [output_image]

@@ -86,15 +86,17 @@ public:
   //! Information to the plug-in manager of DDNewImage/Nuke.
   static const DD::Image::Iop::Description description;
 
-  static void addDynamicKnobs(void* , DD::Image::Knob_Callback);
+  static void addDynamicKnobs(void*, DD::Image::Knob_Callback);
   void knobs(DD::Image::Knob_Callback f);
-  int knob_changed(DD::Image::Knob* );
-  
+  int knob_changed(DD::Image::Knob*);
+
   //! Return the name of the class.
   const char* Class() const;
   const char* node_help() const;
 
   MLClientModelManager& getModelManager();
+  int getNumNewKnobs();
+  void setNumNewKnobs(int i);
 
 private:
   // Private functions for talking to the server
@@ -119,9 +121,11 @@ private:
   //! Return whether the dynamic knobs should be shown or not.
   bool getShowDynamic() const;
 
+  //! Look for the knob with the given name. If found, restore its value
+  //! from the given serialised value. 
+  void restoreKnobValue(const std::string& knobName, const std::string& value);
+
 private:
-  // Private member variables
-  
   std::string _host;
   bool _hostIsValid;
   int _port;
@@ -135,11 +139,10 @@ private:
   std::vector<int> _numInputs;
   std::vector<std::vector<std::string>> _inputNames;
 
-  bool _showDynamic;
-  
   MLClientModelManager _modelManager;
 
-  int _numNewKnobs;
+  bool _showDynamic;
+  int _numNewKnobs;       // Used to track the number of knobs created by the previous pass, so that the same number can be deleted next time.
 
 };
 

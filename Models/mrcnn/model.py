@@ -21,9 +21,13 @@
 # Licensed under the Apache License, Version 2.0
 # --------------------------------------------------------
 
-from ..baseModel import BaseModel
+import copy
+import numpy as np
 
 from caffe2.python import workspace
+# import libcaffe2_detectron_ops_gpu.so
+import detectron.utils.c2 as c2_utils
+c2_utils.import_detectron_ops()
 
 from detectron.core.config import assert_and_infer_cfg
 from detectron.core.config import cfg
@@ -36,11 +40,10 @@ import detectron.core.test_engine as infer_engine
 import detectron.datasets.dummy_datasets as dummy_datasets
 import detectron.utils.c2 as c2_utils
 
-import vis as vis_utils
-from utils import dict_equal
-
-import numpy as np
-import copy
+from .vis import vis_one_image_binary, vis_one_image_opencv
+from .utils import dict_equal
+from ..common.util import linear_to_srgb, srgb_to_linear
+from ..baseModel import BaseModel
 
 class Model(BaseModel):
     def __init__(self):
@@ -88,7 +91,7 @@ class Model(BaseModel):
         Return the result of the inference.
         """
         image = image_list[0]
-        image = self.linear_to_srgb(image)*255.
+        image = linear_to_srgb(image)*255.
         imcpy = image.copy()
 
         # Initialize the model out of the configuration and weights files
@@ -114,19 +117,21 @@ class Model(BaseModel):
                 self.model = infer_engine.initialize_model_from_cfg(self.weights)
 
         with c2_utils.NamedCudaScope(0):
+            # If using densepose/detectron GitHub, im_detect_all also returns cls_bodys
+            # Only takes the first 3 elements of the list for compatibility
             cls_boxes, cls_segms, cls_keyps = infer_engine.im_detect_all(
                 self.model, image[:, :, ::-1], None
-                )
+                )[:3]
 
         if self.binary_masks:
-            res = vis_utils.vis_one_image_binary(
+            res = vis_one_image_binary(
                 imcpy,
                 cls_boxes,
                 cls_segms,
                 thresh=self.thresh
                 )
         else:
-            res = vis_utils.vis_one_image_opencv(
+            res = vis_one_image_opencv(
                 imcpy,
                 cls_boxes,
                 cls_segms,
@@ -142,6 +147,6 @@ class Model(BaseModel):
                 font_scale=self.font_scale
                 )
 
-        res = self.srgb_to_linear(res.astype(np.float32) / 255.)
+        res = srgb_to_linear(res.astype(np.float32) / 255.)
 
         return [res]

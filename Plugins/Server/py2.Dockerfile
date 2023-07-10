@@ -1,5 +1,5 @@
 # Ubuntu 18.04 with CUDA 10.0, CuDNN 7.6
-# Python3.6, TensorFlow 1.15.0, PyTorch 1.4
+# Python2.7, TensorFlow 1.15.0, PyTorch 1.4
 FROM nvidia/cuda:10.0-cudnn7-devel-ubuntu18.04
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -18,17 +18,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         vim && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Python 3.6
+# Install Python 2.7
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        python3-opencv \
-        python3-pip \
-        python3.6-dev && \
+        python-pip \
+        python2.7-dev && \
     rm -rf /var/lib/apt/lists/*
-# Have aliases python3->python and pip3->pip
-RUN ln -s /usr/bin/python3 /usr/bin/python && \
-    ln -s /usr/bin/pip3 /usr/bin/pip
-RUN python -m pip install --upgrade pip
 
+# pip version 21.0 will drop support for Python 2.7
+RUN python -m pip install --upgrade pip==20.1
 RUN pip install --no-cache-dir setuptools wheel && \
     pip install --no-cache-dir \
     future \
@@ -37,10 +34,10 @@ RUN pip install --no-cache-dir setuptools wheel && \
     pyyaml==3.13 \
     scikit-image \
     typing \
-    imageio \
-    OpenEXR
+    imageio==2.6.1 \
+    OpenEXR==1.3.2
 
-# Install TF 1.15.0 GPU for Python3.6 (no TensorRT)
+# Install TF 1.15.0 GPU for Python2.7
 RUN pip install --no-cache-dir \
     tensorflow-gpu==1.15.0 \
     tensorflow-determinism
@@ -56,7 +53,7 @@ RUN pip install 'git+https://github.com/cocodataset/cocoapi.git#subdirectory=Pyt
 
 # Install detectron for mask RCNN
 RUN git clone https://github.com/facebookresearch/detectron
-RUN sed -i 's/cythonize(ext_modules)/cythonize(ext_modules, language_level="3")/g' detectron/setup.py
+RUN sed -i 's/cythonize(ext_modules)/cythonize(ext_modules, language_level="2")/g' detectron/setup.py
 RUN cd detectron && pip install -r requirements.txt && make
 
 WORKDIR /workspace/ml-server

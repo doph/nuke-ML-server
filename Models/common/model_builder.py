@@ -13,6 +13,7 @@
 # limitations under the License.
 ##############################################################################
 
+from builtins import range # python 2/3 forward-compatible (xrange)
 import tensorflow as tf
 
 class ResNetBlock(tf.keras.layers.Layer):
@@ -83,18 +84,18 @@ class EncoderDecoder(tf.keras.Model):
         # Apply encoder decoder
         n, h, w, c = inputs.get_shape().as_list()
         n_outputs = []
-        inp_pred = inputs
-        with tf.variable_scope('', reuse=reuse):
-            for i in xrange(self.n_levels):
+        input_pred = inputs
+        with tf.compat.v1.variable_scope('', reuse=reuse):
+            for i in range(self.n_levels):
                 scale = self.scale ** (self.n_levels - i - 1)
                 hi = int(round(h * scale))
                 wi = int(round(w * scale))
-                inp_init = tf.image.resize_images(inputs, [hi, wi], method=0)
-                inp_pred = tf.stop_gradient(tf.image.resize_images(inp_pred, [hi, wi], method=0))
-                inp_all = tf.concat([inp_init, inp_pred], axis=3, name='inp')
+                input_init = tf.image.resize(inputs, [hi, wi], method='bilinear')
+                input_pred = tf.stop_gradient(tf.image.resize(input_pred, [hi, wi], method='bilinear'))
+                input_all = tf.concat([input_init, input_pred], axis=3, name='inp')
 
                 # Encoder
-                conv1_1 = self.conv1_1(inp_all)
+                conv1_1 = self.conv1_1(input_all)
                 conv1_2 = self.block1_2(conv1_1)
                 conv1_3 = self.block1_3(conv1_2)
                 conv1_4 = self.block1_4(conv1_3)
@@ -121,13 +122,12 @@ class EncoderDecoder(tf.keras.Model):
                 deconv1_3 = self.deblock1_3(cat1)
                 deconv1_2 = self.deblock1_2(deconv1_3)
                 deconv1_1 = self.deblock1_1(deconv1_2)
-                reconstructed = self.deconv0_4(deconv1_1)
+                input_pred = self.deconv0_4(deconv1_1)
 
                 if i >= 0:
-                    n_outputs.append(reconstructed)
+                    n_outputs.append(input_pred)
                 if i == 0:
-                    tf.get_variable_scope().reuse_variables()
-
+                    tf.compat.v1.get_variable_scope().reuse_variables()
         return n_outputs
 
 def mobilenet_transfer(class_number):
@@ -157,4 +157,17 @@ def mobilenet_transfer(class_number):
     for layer in model.layers[60:]:
         layer.trainable=True
 
+    return model
+
+def baseline_model(input_shape, output_param_number=1, hidden_layer_size=16):
+    """Return a fully connected model with 1 hidden layer"""
+    if hidden_layer_size < output_param_number:
+        raise ValueError("Neurons in the hidden layer (={}) \
+            should be > output param number (={})".format(
+                hidden_layer_size, output_param_number))
+    model = tf.keras.Sequential()
+    model.add(tf.keras.layers.Flatten(input_shape=input_shape))
+    # Regular densely connected NN layer
+    model.add(tf.keras.layers.Dense(hidden_layer_size, activation=tf.nn.relu))
+    model.add(tf.keras.layers.Dense(output_param_number, activation=None)) # linear activation
     return model
